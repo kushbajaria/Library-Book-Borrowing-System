@@ -1,7 +1,0 @@
-namespace LibraryBookBorrowingSystem.Api.Dtos;
-
-public class UpdateMemberRequest
-{
-    public string FullName { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-}
