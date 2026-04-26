@@ -1,105 +1,88 @@
 Library Book Borrowing System
-A RESTful backend API built with C#, ASP.NET Core 8, Entity Framework Core, and SQLite for managing library books, members, and borrowing activity.
+Libaverse Design Document
+AP, Kush, Evan
 
-Table of Contents
+# 1. System Overview
+The Library Book Borrowing System is a RESTful backend API built with C# and ASP.NET Core 8, using Entity Framework Core and SQLite for data storage. It manages three core resources: Books, Members, and Borrow Records.
+The system supports:
 
-System Overview
-API Endpoints
-Architecture
-DTOs
-Validation
-Error Handling
-Concurrency
-Caching
-Team
+Full CRUD operations for books and members
+Borrowing and returning books with availability tracking
+Viewing all borrow records and a member's borrow history
 
 
-System Overview
-This is a backend only API with no frontend. It can be tested through Swagger UI at http://localhost:{PORT}/swagger after running the project.
-The system manages three resources:
-
-Books — library inventory with copy tracking
-Members — registered library users
-Borrow Records — tracks who borrowed what and when
-
-
-API Endpoints
+# 2. API Design — Endpoint List
 Books
-MethodRouteDescriptionStatus CodesGET/api/booksGet all books (cached)200GET/api/books/{id}Get book by ID200, 404POST/api/booksCreate a book201, 400PUT/api/books/{id}Update a book200, 400, 404DELETE/api/books/{id}Delete a book204, 404
+
+GET /api/books — Get all books (cached) → 200
+GET /api/books/{id} — Get book by ID → 200, 404
+POST /api/books — Create a book → 201, 400
+PUT /api/books/{id} — Update a book → 200, 400, 404
+DELETE /api/books/{id} — Delete a book → 204, 404
+
 Members
-MethodRouteDescriptionStatus CodesGET/api/membersGet all members200GET/api/members/{id}Get member by ID200, 404POST/api/membersCreate a member201, 400PUT/api/members/{id}Update a member200, 400, 404DELETE/api/members/{id}Delete a member204, 404
+
+GET /api/members — Get all members → 200
+GET /api/members/{id} — Get member by ID → 200, 404
+POST /api/members — Create a member → 201, 400
+PUT /api/members/{id} — Update a member → 200, 400, 404
+DELETE /api/members/{id} — Delete a member → 204, 404
+
 Borrowing
-MethodRouteDescriptionStatus CodesPOST/api/borrowBorrow a book201, 400, 404, 409POST/api/return/{recordId}Return a book200, 400, 404GET/api/borrow recordsGet all borrow records200GET/api/members/{memberId}/borrow historyGet member borrow history200
 
-Architecture
-Three layer architecture with strict separation of concerns:
-Client Request
-     ↓
-Controller   → validates input, handles HTTP
-     ↓
-Service      → enforces business rules
-     ↓
-Repository   → database queries only
-     ↓
-SQLite Database
-Each layer only talks to the layer directly next to it. Controllers never touch the database. Repositories never make business decisions.
+POST /api/borrow — Borrow a book → 201, 400, 404, 409
+POST /api/return/{recordId} — Return a book → 200, 400, 404
+GET /api/borrow-records — Get all borrow records → 200
+GET /api/members/{memberId}/borrow-history — Get member borrow history → 200
 
-DTOs
-DTOs separate what is stored in the database from what the API exposes. Clients never send an Id — the server always generates it.
-DTODirectionPurposeCreateBookRequestIncomingTitle, Author, ISBN, TotalCopiesUpdateBookRequestIncomingFields allowed when editing a bookBookResponseOutgoingFull book data including AvailableCopiesCreateMemberRequestIncomingFullName and EmailMemberResponseOutgoingFull member data including MembershipDateBorrowRequestIncomingBookId and MemberIdBorrowRecordResponseOutgoingFull record with Status and ReturnDateErrorResponseOutgoing{ "error": "message" }
+# 3. Architecture Explanation
+The project uses a strict three-layer architecture:
+Controller Layer — handles HTTP requests and basic input validation. Never contains business logic. Returns appropriate HTTP status codes and JSON responses.
+Service Layer — contains all business rules and logic. Decides whether an operation is allowed. Converts database models to DTOs before returning data.
+Repository Layer — the only layer that touches the database. Handles all queries and writes through Entity Framework Core. No business logic here.
+A request flows: Client → Controller → Service → Repository → SQLite Database, and the result travels back up the same chain.
 
-Validation
-Controller level — required fields, basic format checks:
+# 4. DTO Design
+Incoming (what the client sends):
 
-Title, Author, ISBN cannot be empty
-TotalCopies must be greater than 0
-Email must contain @
+CreateBookRequest — Title, Author, ISBN, TotalCopies (no Id, server generates it)
+UpdateBookRequest — Fields allowed when editing a book
+CreateMemberRequest — FullName and Email
+UpdateMemberRequest — FullName and Email
+BorrowRequest — BookId and MemberId
 
-Service level — business rules:
+Outgoing (what the server sends back):
 
-Book and member must exist before borrowing
-AvailableCopies must be greater than 0
-Cannot borrow the same book twice without returning
-Cannot return a book you did not borrow
+BookResponse — Full book data including Id and AvailableCopies
+MemberResponse — Full member data including Id and MembershipDate
+BorrowRecordResponse — Full record including Status and ReturnDate
+ErrorResponse — Consistent error format: { "error": "message" }
+PagedResult<T> — Generic wrapper for paginated list responses
+# 5. Validation Strategy
+Validation is applied at three levels:
+Controller — required fields, data types, and basic format checks (e.g. Title cannot be empty, TotalCopies must be greater than zero, Email must contain @).
+Service — business rules such as: book and member must exist before borrowing, AvailableCopies must be greater than zero, a member cannot borrow the same book twice, and a member cannot return a book they did not borrow.
+Database — foreign key constraints and cascade deletes configured through Entity Framework Core ensure data integrity at the database level.
 
-Database level — foreign key constraints and cascade deletes via Entity Framework Core
+# 6. Error Handling Approach
+Status codes used:
 
-Error Handling
-All errors return a consistent format:
-json{
-  "error": "Message here"
-}
-ScenarioStatus CodeResource not found404 Not FoundInvalid input400 Bad RequestNo copies or duplicate borrow409 ConflictSuccessful creation201 CreatedSuccessful read or update200 OKSuccessful delete204 No Content
-Stack traces are never exposed to the client.
+200 OK — Successful read or update
+201 Created — Successful creation, returns new resource
+204 No Content — Successful delete, empty body
+400 Bad Request — Invalid input or business rule violation
+404 Not Found — Resource does not exist
+409 Conflict — No available copies or duplicate borrow attempt
 
-Concurrency
-Problem: Two members borrowing the last available copy simultaneously could both pass the availability check and drive AvailableCopies below zero.
-Solution: Two layers of protection:
-
-Service checks AvailableCopies > 0 before any write
-EF Core wraps all writes in database transactions and SQLite serializes writes, so only one completes first
-
+# 7. Concurrency Handling
+Problem: Two members borrowing the last available copy simultaneously could both pass the availability check and result in AvailableCopies going below zero.
+Solution: Two layers of protection are used. First, the service checks that AvailableCopies is greater than zero before allowing any write. Second, Entity Framework Core wraps all writes in database transactions and SQLite processes writes one at a time, so even if two requests pass the first check simultaneously, only one write completes first and the other fails safely.
 Result: AvailableCopies never goes below zero. One request gets 201 Created, the other gets 409 Conflict.
 
-Caching
-GET /api/books is cached using IMemoryCache because it is the most frequently read endpoint.
-BehaviorDetailCache duration2 minutesFirst requestFetches from database, stores in memorySubsequent requestsServed from memory, no database hitInvalidationCache cleared on any create, update, or delete
-Registered in Program.cs with builder.Services.AddMemoryCache() and injected into BookService.
-
-Getting Started
-bash# Install EF tools if not already installed
-dotnet tool install   global dotnet ef
-
-# Restore packages
-dotnet restore
-
-# Create the database
-dotnet ef migrations add InitialCreate
-dotnet ef database update
-
-# Run the project
-dotnet run
-Open your browser at http://localhost:{PORT}/swagger to test all endpoints.
+# 8. Caching Strategy
+Why: Without caching, every call to GET /api/books hits the database. Caching stores the result in memory so repeated requests are served instantly without a database query.
+What: The GET /api/books endpoint is cached using IMemoryCache because it is the most frequently called read endpoint. Results are cached for 2 minutes.
+Invalidation: The cache is cleared immediately whenever a book is created, updated, or deleted, ensuring clients never receive stale data.
 
 #Member Contributions:
 
