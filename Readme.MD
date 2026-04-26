@@ -1,6 +1,10 @@
-#Library Book Borrowing System
-#Libaverse Design Document
-#AP, Kush, Evan
+<div align="center">
+
+# Library Book Borrowing System
+### Libaverse Design Document
+### AP, Kush, Evan
+
+</div>
 
 ## 1. System Overview
 The Library Book Borrowing System is a RESTful backend API built with C# and ASP.NET Core 8, using Entity Framework Core and SQLite for data storage. It manages three core resources: Books, Members, and Borrow Records.
