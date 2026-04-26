@@ -1,8 +1,8 @@
-Library Book Borrowing System
-Libaverse Design Document
-AP, Kush, Evan
+#Library Book Borrowing System
+#Libaverse Design Document
+#AP, Kush, Evan
 
-# 1. System Overview
+## 1. System Overview
 The Library Book Borrowing System is a RESTful backend API built with C# and ASP.NET Core 8, using Entity Framework Core and SQLite for data storage. It manages three core resources: Books, Members, and Borrow Records.
 The system supports:
 
@@ -11,7 +11,7 @@ Borrowing and returning books with availability tracking
 Viewing all borrow records and a member's borrow history
 
 
-# 2. API Design — Endpoint List
+## 2. API Design — Endpoint List
 Books
 
 GET /api/books — Get all books (cached) → 200
@@ -35,14 +35,14 @@ POST /api/return/{recordId} — Return a book → 200, 400, 404
 GET /api/borrow-records — Get all borrow records → 200
 GET /api/members/{memberId}/borrow-history — Get member borrow history → 200
 
-# 3. Architecture Explanation
+## 3. Architecture Explanation
 The project uses a strict three-layer architecture:
 Controller Layer — handles HTTP requests and basic input validation. Never contains business logic. Returns appropriate HTTP status codes and JSON responses.
 Service Layer — contains all business rules and logic. Decides whether an operation is allowed. Converts database models to DTOs before returning data.
 Repository Layer — the only layer that touches the database. Handles all queries and writes through Entity Framework Core. No business logic here.
 A request flows: Client → Controller → Service → Repository → SQLite Database, and the result travels back up the same chain.
 
-# 4. DTO Design
+## 4. DTO Design
 Incoming (what the client sends):
 
 CreateBookRequest — Title, Author, ISBN, TotalCopies (no Id, server generates it)
@@ -58,13 +58,13 @@ MemberResponse — Full member data including Id and MembershipDate
 BorrowRecordResponse — Full record including Status and ReturnDate
 ErrorResponse — Consistent error format: { "error": "message" }
 PagedResult<T> — Generic wrapper for paginated list responses
-# 5. Validation Strategy
+## 5. Validation Strategy
 Validation is applied at three levels:
 Controller — required fields, data types, and basic format checks (e.g. Title cannot be empty, TotalCopies must be greater than zero, Email must contain @).
 Service — business rules such as: book and member must exist before borrowing, AvailableCopies must be greater than zero, a member cannot borrow the same book twice, and a member cannot return a book they did not borrow.
 Database — foreign key constraints and cascade deletes configured through Entity Framework Core ensure data integrity at the database level.
 
-# 6. Error Handling Approach
+## 6. Error Handling Approach
 Status codes used:
 
 200 OK — Successful read or update
@@ -74,12 +74,12 @@ Status codes used:
 404 Not Found — Resource does not exist
 409 Conflict — No available copies or duplicate borrow attempt
 
-# 7. Concurrency Handling
+## 7. Concurrency Handling
 Problem: Two members borrowing the last available copy simultaneously could both pass the availability check and result in AvailableCopies going below zero.
 Solution: Two layers of protection are used. First, the service checks that AvailableCopies is greater than zero before allowing any write. Second, Entity Framework Core wraps all writes in database transactions and SQLite processes writes one at a time, so even if two requests pass the first check simultaneously, only one write completes first and the other fails safely.
 Result: AvailableCopies never goes below zero. One request gets 201 Created, the other gets 409 Conflict.
 
-# 8. Caching Strategy
+## 8. Caching Strategy
 Why: Without caching, every call to GET /api/books hits the database. Caching stores the result in memory so repeated requests are served instantly without a database query.
 What: The GET /api/books endpoint is cached using IMemoryCache because it is the most frequently called read endpoint. Results are cached for 2 minutes.
 Invalidation: The cache is cleared immediately whenever a book is created, updated, or deleted, ensuring clients never receive stale data.
