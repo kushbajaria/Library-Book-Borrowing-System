@@ -132,4 +132,4 @@ All errors return: `{ "error": "message" }`
 
 **Kush Bajaria** — Models, Implementation design, Controllers, Database setup
 
-**Evan** — DTOs, Program.cs, Testing
+**Evan** — DTOs, Program.cs, Project Demo Video, Testing
