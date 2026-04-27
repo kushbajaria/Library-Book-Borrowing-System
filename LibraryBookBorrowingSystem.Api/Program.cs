@@ -2,13 +2,13 @@ using LibraryBookBorrowingSystem.Api.Data;
 using LibraryBookBorrowingSystem.Api.Repositories;
 using LibraryBookBorrowingSystem.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
 // In-memory caching (required for caching requirement)
 builder.Services.AddMemoryCache();
 
@@ -32,8 +32,11 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.MapScalarApiReference(options =>
+    { 
+        options.WithOpenApiRoutePattern("/swagger/v1/swagger.json");
+        });
 }
-
 app.UseHttpsRedirection();
 app.MapControllers();
 app.Run();
